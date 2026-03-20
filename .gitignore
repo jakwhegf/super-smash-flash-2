@@ -1,0 +1,16 @@
+.DS_Store
+Thumbs.db
+
+# Local IDE and agent config
+.claude/
+
+# Browser profiles and debug artifacts
+.edge-*/
+edge-ssf2-netlog*.json
+*.log
+
+# Temporary work folders
+.tmp-*/
+
+# Optional backups
+archive/

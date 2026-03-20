@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Super Smash Flash 2 v0.9</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; background: #000; overflow: hidden; }
+    #game-wrap { position: absolute; inset: 0; width: 100%; height: 100%; }
+  </style>
+  <script>
+    // Intercept dead external requests (MochiBot, PlayerIO) via both fetch and XHR
+    (function() {
+      // Minimal valid SWF: FWS v8, 1 frame, 1x1px
+      var FAKE_SWF = new Uint8Array([
+        0x46,0x57,0x53,0x08, 0x14,0x00,0x00,0x00,
+        0x28,0x28,0x0a,0x00, 0x18,0x00,0x01,0x00,
+        0x40,0x00,0x00,0x00
+      ]);
+      var BLOCKED = ['mochibot.com', 'playerio.com', 'mochiads.com'];
+
+      function isBlocked(url) {
+        return typeof url === 'string' && BLOCKED.some(function(h) { return url.indexOf(h) !== -1; });
+      }
+
+      // Override fetch
+      var _fetch = window.fetch;
+      window.fetch = function(input, init) {
+        var url = typeof input === 'string' ? input : (input && input.url) || '';
+        if (isBlocked(url)) {
+          console.log('[intercept fetch] Faking SWF for:', url);
+          return Promise.resolve(new Response(FAKE_SWF.buffer, {
+            status: 200,
+            headers: { 'Content-Type': 'application/x-shockwave-flash' }
+          }));
+        }
+        return _fetch.apply(this, arguments);
+      };
+
+      // Override XMLHttpRequest for Ruffle's internal XHR calls
+      var _XHROpen = XMLHttpRequest.prototype.open;
+      var _XHRSend = XMLHttpRequest.prototype.send;
+      XMLHttpRequest.prototype.open = function(method, url) {
+        this._interceptUrl = url;
+        return _XHROpen.apply(this, arguments);
+      };
+      XMLHttpRequest.prototype.send = function() {
+        if (isBlocked(this._interceptUrl)) {
+          console.log('[intercept XHR] Faking SWF for:', this._interceptUrl);
+          var self = this;
+          Object.defineProperty(self, 'status', { get: function() { return 200; }, configurable: true });
+          Object.defineProperty(self, 'response', { get: function() { return FAKE_SWF.buffer; }, configurable: true });
+          Object.defineProperty(self, 'responseType', { get: function() { return 'arraybuffer'; }, configurable: true });
+          Object.defineProperty(self, 'readyState', { get: function() { return 4; }, configurable: true });
+          setTimeout(function() {
+            if (typeof self.onload === 'function') self.onload();
+            if (typeof self.onreadystatechange === 'function') self.onreadystatechange();
+          }, 0);
+          return;
+        }
+        return _XHRSend.apply(this, arguments);
+      };
+    })();
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/@ruffle-rs/ruffle@0.2.0-nightly.2026.3.13/ruffle.js"></script>
+</head>
+<body>
+  <div id="game-wrap"></div>
+  <script>
+    window.RufflePlayer = window.RufflePlayer || {};
+    window.RufflePlayer.config = {
+      publicPath: "https://cdn.jsdelivr.net/npm/@ruffle-rs/ruffle@0.2.0-nightly.2026.3.13/",
+      autoplay: "on",
+      unmuteOverlay: "hidden",
+      quality: "high",
+      scale: "showAll",
+      allowNetworking: "all",
+      openUrlMode: "allow",
+      maxExecutionDuration: 60,
+      playerVersion: 32,
+      wmode: "transparent",
+      logLevel: "error"
+    };
+
+    var ruffle = window.RufflePlayer.newest();
+    var player = ruffle.createPlayer();
+    player.style.cssText = "width:100%;height:100%;position:absolute;inset:0";
+    document.getElementById("game-wrap").appendChild(player);
+
+    player.load({
+      url: "./ssf2v09.swf",
+      base: "./"
+    });
+  </script>
+</body>
+</html>
